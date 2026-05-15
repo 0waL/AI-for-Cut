@@ -41,6 +41,7 @@ type BeautyPreviewStatus = "idle" | "processing" | "ready" | "error";
 type CountdownMode = "prep" | "shutter";
 
 const CATEGORIES: KeywordCategory[] = ["theme", "mood", "color", "effect"];
+const DETAIL_CATEGORIES: KeywordCategory[] = ["mood", "color", "effect"];
 const CATEGORY_LABELS: Record<KeywordCategory, string> = {
   theme: "장소",
   mood: "느낌",
@@ -48,6 +49,7 @@ const CATEGORY_LABELS: Record<KeywordCategory, string> = {
   effect: "장식",
 };
 const EVENT_TITLE = "2026. 진주시와 함께하는 경남과학고등학교 수학, 과학, 정보 페스티벌";
+const EVENT_TITLE_FRAME_LINES = ["2026. 진주시와 함께하는 경남과학고등학교", "수학, 과학, 정보 페스티벌"];
 const BOOTH_NAME = "AI와 함께하는 수과정페 네컷";
 const CLUB_NAME = "이음(IEUM)";
 const CLUB_SLOGAN = "- 기술로 사람과 사람을 잇다";
@@ -61,14 +63,9 @@ const BACKGROUND_STAGES = [
 const FINAL_CAPTURE_COUNT = 6;
 const PREP_COUNTDOWN_VALUES = [5, 4, 3, 2, 1];
 const COUNTDOWN_VALUES = [3, 2, 1];
-const SHOT_MISSIONS = [
-  "미래 연구소를 발견한 표정",
-  "실험 버튼을 누르는 포즈",
-  "놀란 표정으로 한 컷",
-  "친구와 임무 성공 포즈",
-  "AI 조수에게 인사하기",
-  "마지막 주인공 포즈",
-];
+const FREE_CAPTURE_READY_TEXT = "화면을 보면서 자유롭게 준비해 주세요";
+const FREE_CAPTURE_SHUTTER_TEXT = "곧 촬영합니다. 화면을 계속 봐 주세요";
+const SHUTTER_FLASH_MS = 240;
 const POSE_EXAMPLES = ["브이", "손하트", "양손 번쩍", "생각하는 포즈"];
 
 const STEP_STAGE: Record<Step, number> = {
@@ -125,14 +122,6 @@ function defaultKeywords(analysis: PoseAnalysis): SelectedKeywords {
   }, {} as SelectedKeywords);
 }
 
-function presetKeywords(analysis: PoseAnalysis, index: number): SelectedKeywords {
-  return CATEGORIES.reduce((acc, category) => {
-    const options = analysis.recommended_keywords[category];
-    acc[category] = options[index % options.length] ?? options[0];
-    return acc;
-  }, {} as SelectedKeywords);
-}
-
 function conceptTitle(selection: SelectedKeywords | null): string {
   if (!selection) {
     return BOOTH_NAME;
@@ -145,10 +134,6 @@ function conceptStory(selection: SelectedKeywords | null): string {
     return "포즈에 어울리는 과학축제 배경을 만듭니다.";
   }
   return `${selection.mood} 느낌의 ${selection.theme} 배경에 ${selection.effect} 장식을 더합니다.`;
-}
-
-function isSameSelection(a: SelectedKeywords | null, b: SelectedKeywords): boolean {
-  return Boolean(a && CATEGORIES.every((category) => a[category] === b[category]));
 }
 
 function svgDataUrl(svg: string): string {
@@ -189,8 +174,9 @@ function demoFinalDataUrl(): string {
     <svg xmlns="http://www.w3.org/2000/svg" width="2400" height="3600" viewBox="0 0 2400 3600">
       <rect width="2400" height="3600" fill="#050505"/>
       ${cells}
-      <text x="1200" y="3330" fill="#f4f1e8" font-family="Arial" font-size="58" font-weight="800" text-anchor="middle">2026. 진주시와 함께하는 경남과학고등학교 수학, 과학, 정보 페스티벌</text>
-      <text x="1200" y="3420" fill="#5eead4" font-family="Arial" font-size="44" font-weight="800" text-anchor="middle">AI TYPE: 초록 홀로그램 과학자</text>
+      <text x="1200" y="3290" fill="#f4f1e8" font-family="Arial" font-size="58" font-weight="800" text-anchor="middle">${EVENT_TITLE_FRAME_LINES[0]}</text>
+      <text x="1200" y="3370" fill="#f4f1e8" font-family="Arial" font-size="58" font-weight="800" text-anchor="middle">${EVENT_TITLE_FRAME_LINES[1]}</text>
+      <text x="1200" y="3460" fill="#5eead4" font-family="Arial" font-size="44" font-weight="800" text-anchor="middle">AI TYPE: 초록 홀로그램 과학자</text>
     </svg>
   `);
 }
@@ -200,7 +186,7 @@ const DEMO_ANALYSIS: PoseAnalysis = {
   pose_summary: "정면을 바라보며 미래 연구소를 발견한 듯한 포즈",
   ui_caption: "차분하지만 미래적인 연구자 느낌이에요.",
   recommended_keywords: {
-    theme: ["과학", "미래도시", "우주", "수학", "AI", "바다"],
+    theme: ["우주", "심해기지", "크리스탈동굴", "정글", "사이버거리", "도서관"],
     mood: ["미래적인", "지적인", "신비로운", "역동적인"],
     color: ["초록", "검정", "네온", "흰색"],
     effect: ["홀로그램", "빛줄기", "별빛", "수식"],
@@ -208,7 +194,7 @@ const DEMO_ANALYSIS: PoseAnalysis = {
 };
 
 const DEMO_SELECTION: SelectedKeywords = {
-  theme: "과학",
+  theme: "우주",
   mood: "미래적인",
   color: "초록",
   effect: "홀로그램",
@@ -385,10 +371,70 @@ function FramePreviewMockup() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/school-mark.png" alt="경남과학고등학교" className="h-20 w-20 rounded-full bg-[#f4f1e8] object-cover" />
         <div className="text-center">
-          <p className="safe-text text-sm font-black leading-tight text-[var(--text)]">{EVENT_TITLE}</p>
+          {EVENT_TITLE_FRAME_LINES.map((line) => (
+            <p key={line} className="safe-text text-sm font-black leading-tight text-[var(--text)]">
+              {line}
+            </p>
+          ))}
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/keuni-deuri-hands.png" alt="크니 드리" className="h-20 w-[110px] object-contain" />
+      </div>
+    </div>
+  );
+}
+
+function CompositingFramePreview({
+  photos,
+  title = "AI가 배경을 입히는 중",
+  compact = false,
+}: {
+  photos: Array<string | undefined>;
+  title?: string;
+  compact?: boolean;
+}) {
+  const slots = Array.from({ length: 4 }, (_, index) => photos[index]);
+  const shellClass = compact ? "max-w-[350px]" : "max-w-[520px]";
+  const panelClass = compact ? "gap-2.5 p-3" : "gap-4 p-5";
+  const gridGapClass = compact ? "gap-2.5" : "gap-4";
+  const logoClass = compact ? "h-10 w-10" : "h-16 w-16";
+  const characterClass = compact ? "h-10 w-[66px]" : "h-16 w-[92px]";
+
+  return (
+    <div className={`ai-composite-shell mx-auto w-full ${shellClass} rounded-[10px] p-[5px]`}>
+      <div className={`relative grid ${panelClass} rounded-[6px] bg-[#050505] text-[var(--text)]`}>
+        <div className={`${compact ? "left-4 top-4 px-3 py-1.5 text-xs" : "left-5 top-5 px-4 py-2 text-sm"} absolute z-20 rounded-[4px] bg-[#050505]/74 font-black tracking-[0.16em] text-[var(--primary)]`}>
+          AI COMPOSITING
+        </div>
+        <div className={`grid grid-cols-2 ${gridGapClass}`}>
+          {slots.map((src, index) => (
+            <div key={index} className="relative aspect-[3/4] overflow-hidden rounded-[4px] bg-[#063d34]">
+              {src ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={src} alt={`${index + 1}번째 합성 대기 사진`} className="h-full w-full object-cover" />
+              ) : (
+                <div className="grid h-full place-items-center text-4xl font-black text-[var(--text-subtle)]">{index + 1}</div>
+              )}
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,transparent_0,transparent_46%,rgba(5,5,5,0.18)_100%)]" />
+            </div>
+          ))}
+        </div>
+        <div className={`${compact ? "grid-cols-[40px_1fr_66px] gap-2.5" : "grid-cols-[64px_1fr_92px] gap-4"} grid items-center`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/school-mark.png" alt="경남과학고등학교" className={`${logoClass} rounded-full bg-[#f4f1e8] object-cover`} />
+          <div className="text-center">
+            {EVENT_TITLE_FRAME_LINES.map((line) => (
+              <p key={line} className={`${compact ? "text-[10px]" : "text-xs"} safe-text font-black leading-tight text-[var(--text)]`}>
+                {line}
+              </p>
+            ))}
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/keuni-deuri-hands.png" alt="크니 드리" className={`${characterClass} object-contain`} />
+        </div>
+        <p className={`${compact ? "text-base" : "text-xl"} safe-text rounded-[4px] bg-[#f4f1e8]/8 px-4 py-3 text-center font-black text-[var(--text)]`}>
+          {title}
+        </p>
       </div>
     </div>
   );
@@ -409,11 +455,11 @@ function BeautySelector({
           <h3 className="text-3xl font-black">얼굴 보정</h3>
         </div>
         <span className="rounded-[4px] bg-[var(--primary)] px-4 py-2 text-xl font-black text-[var(--primary-text)]">
-          {BEAUTY_OPTIONS.find((option) => option.value === value)?.label}
+          {BEAUTY_OPTIONS.find((option) => option.value === value)?.caption}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-5 gap-2">
         {BEAUTY_OPTIONS.map((option) => {
           const active = option.value === value;
           return (
@@ -421,13 +467,13 @@ function BeautySelector({
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              className={`grid min-h-[86px] content-center gap-1 rounded-[4px] border-[3px] px-3 text-center active:translate-y-[2px] ${
+              className={`grid min-h-[82px] content-center gap-1 rounded-[4px] border-[2px] px-2 text-center active:translate-y-[2px] ${
                 active
                   ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-text)]"
                   : "border-[var(--line)] bg-transparent text-[var(--text)]"
               }`}
             >
-              <span className="text-2xl font-black">{option.label}</span>
+              <span className="text-xl font-black">{option.label}</span>
               <span className={`text-base font-black ${active ? "text-[#050505]/70" : "text-[var(--text-muted)]"}`}>
                 {option.caption}
               </span>
@@ -546,6 +592,7 @@ export function BoothApp() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
   const [countdownMode, setCountdownMode] = useState<CountdownMode | null>(null);
+  const [cameraFlash, setCameraFlash] = useState(false);
   const [analysisHelpSeconds, setAnalysisHelpSeconds] = useState(10);
   const [analysisPhoto, setAnalysisPhoto] = useState<string | null>(null);
   const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
@@ -576,6 +623,14 @@ export function BoothApp() {
   const cameraActive = step === "analysis_capture" || step === "capture";
   const selectedReady = selectedPhotoIndices.length === 4;
   const previewPhotos = beautifiedPhotos.length === capturedPhotos.length ? beautifiedPhotos : capturedPhotos;
+  const selectedFramePhotos = useMemo(
+    () =>
+      Array.from({ length: 4 }, (_, order) => {
+        const photoIndex = selectedPhotoIndices[order];
+        return typeof photoIndex === "number" ? previewPhotos[photoIndex] : undefined;
+      }),
+    [previewPhotos, selectedPhotoIndices],
+  );
   const beautyPreviewProcessing = beautyPreviewStatus === "processing";
   const screenshotMode =
     process.env.NODE_ENV !== "production" &&
@@ -589,6 +644,8 @@ export function BoothApp() {
 
     const params = new URLSearchParams(window.location.search);
     const screenshotStep = params.get("screenshotStep") as Step | null;
+    const screenshotCountdown = params.get("screenshotCountdown");
+    const screenshotFlash = params.get("screenshotFlash") === "1";
     if (!screenshotStep || !(screenshotStep in STEP_STAGE)) {
       return;
     }
@@ -615,9 +672,21 @@ export function BoothApp() {
     setPendingUploadAfterBackground(screenshotStep === "background_loading");
     setUploadStatus("선택한 사진을 네컷 프레임에 맞추고 있습니다");
     setShotIndex(screenshotStep === "capture" ? 2 : 1);
-    setShotStatus(screenshotStep === "capture" ? SHOT_MISSIONS[1] : "화면을 보고 원하는 테마를 몸짓으로 표현해 주세요");
+    setShotStatus(screenshotStep === "capture" ? FREE_CAPTURE_READY_TEXT : "화면을 보고 원하는 테마를 몸짓으로 표현해 주세요");
     setFinalUrl(demoFinalDataUrl());
     setCompleteTitle("완료");
+    setCameraFlash(screenshotFlash);
+    if (screenshotCountdown === "prep") {
+      setCountdownMode("prep");
+      setCountdownLabel(screenshotStep === "capture" ? "포즈 변경" : "포즈 준비");
+      setCountdown(4);
+    } else if (screenshotCountdown === "shutter") {
+      setCountdownMode("shutter");
+      setCountdownLabel("촬영");
+      setCountdown(3);
+    } else {
+      clearCountdown();
+    }
     setStep(screenshotStep);
   }, []);
 
@@ -647,6 +716,32 @@ export function BoothApp() {
     clearCountdown();
   }
 
+  const triggerCameraFlash = useCallback(async (runId: number) => {
+    if (flowRunRef.current !== runId) {
+      return;
+    }
+    setCameraFlash(true);
+    await sleep(SHUTTER_FLASH_MS);
+    if (flowRunRef.current === runId) {
+      setCameraFlash(false);
+    }
+  }, []);
+
+  const captureCurrentFrameWithFlash = useCallback(
+    async (runId: number) => {
+      if (flowRunRef.current !== runId) {
+        return null;
+      }
+      setShotStatus("찰칵!");
+      const flash = triggerCameraFlash(runId);
+      await sleep(70);
+      const captured = flowRunRef.current === runId ? (cameraRef.current?.capture("image/png") ?? null) : null;
+      await flash;
+      return captured;
+    },
+    [triggerCameraFlash],
+  );
+
   async function start() {
     try {
       if (!requiredConsentAccepted) {
@@ -672,6 +767,7 @@ export function BoothApp() {
       setUploadStatus("");
       setShotIndex(1);
       setShotStatus("카메라를 준비하고 있습니다");
+      setCameraFlash(false);
       setCameraReady(false);
       setCompleteTitle("전송 완료");
       clearCountdown();
@@ -692,6 +788,7 @@ export function BoothApp() {
     flowRunRef.current += 1;
     captureStartedRef.current = false;
     clearCountdown();
+    setCameraFlash(false);
     setStep("idle");
     setSessionId(null);
     setCameraReady(false);
@@ -728,6 +825,7 @@ export function BoothApp() {
   const beginAnalysisCapture = useCallback(() => {
     captureStartedRef.current = false;
     clearCountdown();
+    setCameraFlash(false);
     setShotIndex(1);
       setShotStatus("AI가 배경을 고를 사진을 준비해 주세요");
     setCameraReady(false);
@@ -788,7 +886,10 @@ export function BoothApp() {
       if (flowRunRef.current !== runId) {
         return;
       }
-      const captured = cameraRef.current?.capture("image/png");
+      const captured = await captureCurrentFrameWithFlash(runId);
+      if (flowRunRef.current !== runId) {
+        return;
+      }
       if (!captured) {
         throw new Error("사진을 촬영하지 못했습니다");
       }
@@ -797,9 +898,10 @@ export function BoothApp() {
       await analyzeFirstPhoto(captured, runId);
     } catch (captureError) {
       clearCountdown();
+      setCameraFlash(false);
       setError(captureError instanceof Error ? captureError.message : "AI가 배경을 고를 사진 촬영에 실패했습니다");
     }
-  }, [activeRun, analyzeFirstPhoto]);
+  }, [activeRun, analyzeFirstPhoto, captureCurrentFrameWithFlash]);
 
   const captureFinalPhotos = useCallback(async () => {
     const runId = activeRun();
@@ -816,17 +918,20 @@ export function BoothApp() {
           return;
         }
         setShotIndex(index);
-        setShotStatus(SHOT_MISSIONS[index - 1] ?? "자유 포즈");
+        setShotStatus(FREE_CAPTURE_READY_TEXT);
         await runCountdown(runId, PREP_COUNTDOWN_VALUES, index === 1 ? "포즈 준비" : "포즈 변경", "prep");
         if (flowRunRef.current !== runId) {
           return;
         }
-        setShotStatus(SHOT_MISSIONS[index - 1] ?? "자유 포즈");
+        setShotStatus(FREE_CAPTURE_SHUTTER_TEXT);
         await runCountdown(runId, COUNTDOWN_VALUES, "촬영", "shutter");
         if (flowRunRef.current !== runId) {
           return;
         }
-        const captured = cameraRef.current?.capture("image/png");
+        const captured = await captureCurrentFrameWithFlash(runId);
+        if (flowRunRef.current !== runId) {
+          return;
+        }
         if (!captured) {
           throw new Error("사진을 촬영하지 못했습니다");
         }
@@ -839,9 +944,10 @@ export function BoothApp() {
       }
     } catch (captureError) {
       clearCountdown();
+      setCameraFlash(false);
       setError(captureError instanceof Error ? captureError.message : "최종 사진 촬영에 실패했습니다");
     }
-  }, [activeRun]);
+  }, [activeRun, captureCurrentFrameWithFlash]);
 
   useEffect(() => {
     if ((step !== "analysis_capture" && step !== "capture") || !cameraReady || captureStartedRef.current) {
@@ -948,6 +1054,10 @@ export function BoothApp() {
     setCameraReady(false);
     void startBackgroundGeneration(tagSelection);
     setStep("capture");
+  }
+
+  function updateSelectedKeyword(category: KeywordCategory, value: string) {
+    setTagSelection((current) => (current ? { ...current, [category]: value } : current));
   }
 
   function retryBackgroundGeneration() {
@@ -1095,7 +1205,6 @@ export function BoothApp() {
 
   return (
     <main className="kiosk-root">
-      <Countdown value={countdownMode === "prep" ? countdown : null} label={countdownLabel} variant="prep" />
       <div className="photoism-theme kiosk-screen bg-[#050505] text-[#f4f1e8]">
         <KioskHeader step={step} onRestart={() => void restart()} />
 
@@ -1293,6 +1402,8 @@ export function BoothApp() {
                         className="h-full w-full rounded-[4px] object-cover"
                       />
                       <CameraGuideOverlay />
+                      <Countdown value={countdownMode === "shutter" ? countdown : null} label={countdownLabel} variant="shutter" />
+                      {cameraFlash && <div className="camera-flash-effect" aria-hidden="true" />}
                     </div>
                   ) : (
                     <CameraPreview
@@ -1302,21 +1413,23 @@ export function BoothApp() {
                       variant="kiosk"
                     >
                       <Countdown value={countdownMode === "shutter" ? countdown : null} label={countdownLabel} variant="shutter" />
+                      {cameraFlash && <div className="camera-flash-effect" aria-hidden="true" />}
                     </CameraPreview>
                   )}
                   <div className="absolute bottom-6 left-6 right-6 rounded-[6px] border border-[var(--line)] bg-[#050505]/86 px-7 py-4 text-center text-3xl font-black text-[var(--text)]">
-                    {step === "analysis_capture" ? "AI가 배경을 고를 사진" : `${shotIndex}/${FINAL_CAPTURE_COUNT} 컷 미션`}
+                    {step === "analysis_capture" ? "AI가 배경을 고를 사진" : `${shotIndex}/${FINAL_CAPTURE_COUNT} 컷`}
                   </div>
                 </div>
               </div>
               <div className="grid content-center gap-8">
                 <StepTitle
-                  eyebrow={step === "analysis_capture" ? "01 AI 추천 사진" : "03 미션 촬영"}
+                  eyebrow={step === "analysis_capture" ? "01 AI 추천 사진" : "03 자동 촬영"}
                   title={step === "analysis_capture" ? "크게 포즈를 보여 주세요" : `${shotIndex}/${FINAL_CAPTURE_COUNT} 컷`}
-                  detail={step === "analysis_capture" ? "최종 네컷에는 들어가지 않는 AI 추천 사진입니다." : "이번 컷 미션"}
+                  detail={step === "analysis_capture" ? "최종 네컷에는 들어가지 않는 AI 추천 사진입니다." : "자동 촬영"}
                   compact
                   right={<div className="rounded-[6px] bg-[var(--primary)] px-6 py-4 text-2xl font-black text-[var(--primary-text)]">AUTO</div>}
                 />
+                <Countdown value={countdownMode === "prep" ? countdown : null} label={countdownLabel} variant="prep" />
                 {step === "capture" && <CaptureRail captured={capturedPhotos} activeIndex={shotIndex} count={FINAL_CAPTURE_COUNT} />}
                 {step === "capture" && backgroundStatus !== "idle" && (
                   <BackgroundProgress status={backgroundStatus} progress={backgroundProgress} error={backgroundError} compact />
@@ -1341,7 +1454,7 @@ export function BoothApp() {
 
           {!error && step === "tag_select" && analysis && tagSelection && (
             <div className="grid min-h-0 grid-cols-[390px_1fr] gap-8">
-              <div className="grid content-center gap-5">
+              <div className="grid min-h-0 content-center gap-4">
                 <div className="overflow-hidden rounded-[6px] border border-[var(--line)] bg-[var(--surface)] p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={analysisPhoto ?? capturedPhotos[0]} alt="AI 추천 기준 사진" className="aspect-[3/4] w-full object-cover" />
@@ -1349,7 +1462,7 @@ export function BoothApp() {
                 <div className="rounded-[6px] bg-[var(--surface)] p-5 text-center">
                   <p className="text-xl font-black text-[var(--primary)]">AI가 포즈를 분석했어요</p>
                   <p className="mt-2 safe-text text-2xl font-black text-[var(--text-muted)]">
-                    오늘 어울리는 배경 세계관을 골라 주세요.
+                    메인 테마를 고르고 세부 태그를 조합해 주세요.
                   </p>
                 </div>
               </div>
@@ -1357,54 +1470,97 @@ export function BoothApp() {
               <div className="grid content-center gap-5">
                 <StepTitle
                   eyebrow="02 AI 추천"
-                  title="추천 배경을 골라 주세요"
-                  detail="카드 하나를 고르면 바로 그 분위기로 촬영을 시작합니다."
+                  title="배경 조합을 만들어 주세요"
+                  detail="큰 테마 하나를 고르고, 아래 세부 태그로 원하는 분위기를 더합니다."
                   compact
                 />
 
-                <div className="grid grid-cols-3 gap-4">
-                  {[0, 1, 2].map((presetIndex) => {
-                    const preset = presetKeywords(analysis, presetIndex);
-                    const active = isSameSelection(tagSelection, preset);
-                    return (
-                      <button
-                        key={`${preset.theme}-${preset.mood}-${preset.color}-${preset.effect}`}
-                        type="button"
-                        onClick={() => setTagSelection(preset)}
-                        className={`grid min-h-[320px] content-between rounded-[8px] border-2 p-7 text-left active:translate-y-[2px] ${
-                          active
-                            ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-text)]"
-                            : "border-[var(--line-soft)] bg-[var(--surface)] text-[var(--text)]"
-                        }`}
-                      >
-                        <div className="grid gap-5">
-                          <p className={`text-lg font-black tracking-[0.16em] ${active ? "text-[#050505]/60" : "text-[var(--text-subtle)]"}`}>
-                            AI PICK {presetIndex + 1}
-                          </p>
-                          <h3 className="safe-text text-4xl font-black leading-tight">{conceptTitle(preset)}</h3>
-                          <p className={`safe-text text-2xl font-black leading-snug ${active ? "text-[#050505]/70" : "text-[var(--text-muted)]"}`}>
-                            {conceptStory(preset)}
-                          </p>
+                <div className="grid gap-4">
+                  <div className="grid gap-3 rounded-[8px] bg-[var(--surface)] p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-lg font-black tracking-[0.16em] text-[var(--primary)]">MAIN THEME</p>
+                        <h3 className="mt-1 text-3xl font-black text-[var(--text)]">전반적인 배경 테마</h3>
+                      </div>
+                      <p className="safe-text max-w-[380px] text-right text-lg font-black text-[var(--text-muted)]">
+                        먼저 큰 세계관을 고르면 AI가 이 테마를 중심으로 배경을 만듭니다.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {analysis.recommended_keywords.theme.map((keyword) => {
+                        const active = tagSelection.theme === keyword;
+                        return (
+                          <button
+                            key={keyword}
+                            type="button"
+                            onClick={() => updateSelectedKeyword("theme", keyword)}
+                            className={`min-h-[72px] rounded-[6px] border-2 px-4 text-2xl font-black active:translate-y-[2px] ${
+                              active
+                                ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-text)]"
+                                : "border-[var(--line-soft)] bg-[#050505] text-[var(--text)]"
+                            }`}
+                          >
+                            {keyword}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    {DETAIL_CATEGORIES.map((category) => {
+                      const selected = tagSelection[category];
+                      const options = analysis.recommended_keywords[category];
+                      return (
+                        <div key={category} className="grid content-start gap-3 rounded-[8px] bg-[var(--surface)] p-4">
+                          <div>
+                            <p className="text-base font-black tracking-[0.16em] text-[var(--text-subtle)]">
+                              DETAIL TAG
+                            </p>
+                            <h3 className="mt-1 text-2xl font-black text-[var(--text)]">{CATEGORY_LABELS[category]}</h3>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {options.map((keyword) => {
+                              const active = selected === keyword;
+                              return (
+                                <button
+                                  key={`${category}-${keyword}`}
+                                  type="button"
+                                  onClick={() => updateSelectedKeyword(category, keyword)}
+                                  className={`min-h-[58px] rounded-[6px] border px-3 text-left text-xl font-black active:translate-y-[2px] ${
+                                    active
+                                      ? "border-[var(--primary)] bg-[rgba(94,234,212,0.12)] text-[var(--primary)]"
+                                      : "border-[var(--line-soft)] bg-[#050505] text-[var(--text-muted)]"
+                                  }`}
+                                >
+                                  {keyword}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {CATEGORIES.map((category) => (
-                            <span
-                              key={category}
-                              className={`rounded-full px-3 py-2 text-base font-black ${
-                                active ? "bg-[#050505]/12 text-[#050505]" : "bg-[#f4f1e8]/8 text-[var(--text-muted)]"
-                              }`}
-                            >
-                              {preset[category]}
-                            </span>
-                          ))}
-                        </div>
-                      </button>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-5 rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)] px-6 py-3">
+                    <div className="min-w-0">
+                      <p className="text-lg font-black text-[var(--primary)]">현재 조합</p>
+                      <h3 className="safe-text mt-1 text-2xl font-black text-[var(--text)]">{conceptTitle(tagSelection)}</h3>
+                      <p className="safe-text mt-1 text-lg font-black text-[var(--text-muted)]">{conceptStory(tagSelection)}</p>
+                    </div>
+                    <div className="flex max-w-[460px] flex-wrap justify-end gap-2">
+                      {CATEGORIES.map((category) => (
+                        <span key={category} className="rounded-full bg-[#f4f1e8]/8 px-4 py-1.5 text-base font-black text-[var(--text-muted)]">
+                          {CATEGORY_LABELS[category]}: {tagSelection[category]}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                <KioskButton onClick={() => void chooseTagsAndContinue()} className="min-h-[96px] text-3xl">
-                  이 배경으로 촬영하기
+                <KioskButton onClick={() => void chooseTagsAndContinue()} className="min-h-[82px] text-2xl">
+                  이 조합으로 촬영하기
                   <ArrowRight className="h-11 w-11" />
                 </KioskButton>
               </div>
@@ -1438,17 +1594,7 @@ export function BoothApp() {
                   </div>
                 )}
                 {selectedPhotoIndices.length > 0 && (
-                  <div className="grid grid-cols-4 gap-3">
-                    {selectedPhotoIndices.map((photoIndex, order) => (
-                      <div key={`${photoIndex}-${order}`} className="relative overflow-hidden rounded-[6px] bg-[var(--surface)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={previewPhotos[photoIndex]} alt={`${order + 1}번째 선택 사진`} className="aspect-[3/4] w-full object-cover" />
-                        <span className="absolute left-2 top-2 rounded-full bg-[var(--primary)] px-3 py-1 text-lg font-black text-[var(--primary-text)]">
-                          {order + 1}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <CompositingFramePreview photos={selectedFramePhotos} title="선택한 사진에 AI 배경을 입히는 중" compact />
                 )}
               </div>
               <div className="grid gap-5">
@@ -1564,19 +1710,25 @@ export function BoothApp() {
           )}
 
           {!error && step === "uploading" && (
-            <LoadingPanel
-              icon={<Wand2 className="h-16 w-16 animate-pulse" />}
-              title="사진을 정리하고 있습니다"
-              detail={uploadStatus || "선택한 사진을 보정하고 저장합니다"}
-            />
+            <div className="grid h-full grid-cols-[560px_1fr] items-center gap-12">
+              <CompositingFramePreview photos={selectedFramePhotos} title="크로마키 사진을 프레임에 올리는 중" />
+              <LoadingPanel
+                icon={<Wand2 className="h-16 w-16 animate-pulse" />}
+                title="사진을 정리하고 있습니다"
+                detail={uploadStatus || "선택한 사진을 보정하고 저장합니다"}
+              />
+            </div>
           )}
 
           {!error && step === "compose" && (
-            <LoadingPanel
-              icon={<Camera className="h-16 w-16 animate-pulse" />}
-              title="네컷 사진을 만들고 있습니다"
-              detail="선택한 4장과 배경을 최종 프레임에 맞춰 합성합니다"
-            />
+            <div className="grid h-full grid-cols-[560px_1fr] items-center gap-12">
+              <CompositingFramePreview photos={selectedFramePhotos} title="AI 배경과 네컷 프레임을 합성하는 중" />
+              <LoadingPanel
+                icon={<Camera className="h-16 w-16 animate-pulse" />}
+                title="네컷 사진을 만들고 있습니다"
+                detail="선택한 4장과 배경을 최종 프레임에 맞춰 합성합니다"
+              />
+            </div>
           )}
 
           {!error && step === "result" && finalUrl && (
