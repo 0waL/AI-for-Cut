@@ -1,5 +1,6 @@
 import path from "path";
 import sharp from "sharp";
+import { DEFAULT_FRAME_COLOR_ID, getFrameColorOption, type FrameColorId } from "./frame-colors";
 
 export const SHOT_WIDTH = 1200;
 export const SHOT_HEIGHT = 1600;
@@ -14,6 +15,12 @@ const RIGHT_X = 622 * SCALE;
 const TOP_Y = 86 * SCALE;
 const BOTTOM_Y = 794 * SCALE;
 const FRAME_RADIUS = 4 * SCALE;
+const FOOTER_TOP = BOTTOM_Y + PANEL_HEIGHT;
+const FOOTER_CENTER_Y = Math.round((FOOTER_TOP + FINAL_HEIGHT) / 2);
+const FOOTER_TITLE_LINE_1_Y = FOOTER_CENTER_Y - 42;
+const FOOTER_TITLE_LINE_2_Y = FOOTER_CENTER_Y + 46;
+const SCHOOL_MARK_TOP = FOOTER_CENTER_Y - 148;
+const CHARACTER_MARK_TOP = FOOTER_CENTER_Y - 144;
 const EVENT_TITLE_LINE_1 = "2026. 진주시와 함께하는 경남과학고등학교";
 const EVENT_TITLE_LINE_2 = "수학, 과학, 정보 페스티벌";
 
@@ -98,19 +105,21 @@ async function makePanel(background: Buffer, foreground: Buffer): Promise<Buffer
     .toBuffer();
 }
 
-async function panelBorder(): Promise<Buffer> {
+async function panelBorder(frameColorId: FrameColorId): Promise<Buffer> {
+  const frameColor = getFrameColorOption(frameColorId);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${PANEL_WIDTH}" height="${PANEL_HEIGHT}">
-    <rect x="0" y="0" width="${PANEL_WIDTH}" height="${PANEL_HEIGHT}" rx="${FRAME_RADIUS}" fill="none" stroke="#f8fafc" stroke-width="${6 * SCALE}"/>
-    <rect x="${4 * SCALE}" y="${4 * SCALE}" width="${PANEL_WIDTH - 8 * SCALE}" height="${PANEL_HEIGHT - 8 * SCALE}" rx="${FRAME_RADIUS}" fill="none" stroke="#111827" stroke-width="${2 * SCALE}" opacity="0.55"/>
+    <rect x="0" y="0" width="${PANEL_WIDTH}" height="${PANEL_HEIGHT}" rx="${FRAME_RADIUS}" fill="none" stroke="${frameColor.borderColor}" stroke-width="${6 * SCALE}"/>
+    <rect x="${4 * SCALE}" y="${4 * SCALE}" width="${PANEL_WIDTH - 8 * SCALE}" height="${PANEL_HEIGHT - 8 * SCALE}" rx="${FRAME_RADIUS}" fill="none" stroke="${frameColor.textColor}" stroke-width="${2 * SCALE}" opacity="0.42"/>
   </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-async function frameDecoration(): Promise<Buffer> {
+async function frameDecoration(frameColorId: FrameColorId): Promise<Buffer> {
+  const frameColor = getFrameColorOption(frameColorId);
   const baseSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}">
-    <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="#050505"/>
-    <text x="${FINAL_WIDTH / 2}" y="${FINAL_HEIGHT - 224}" text-anchor="middle" font-family="Malgun Gothic, Arial, sans-serif" font-size="62" font-weight="900" fill="#ffffff">${EVENT_TITLE_LINE_1}</text>
-    <text x="${FINAL_WIDTH / 2}" y="${FINAL_HEIGHT - 136}" text-anchor="middle" font-family="Malgun Gothic, Arial, sans-serif" font-size="62" font-weight="900" fill="#ffffff">${EVENT_TITLE_LINE_2}</text>
+    <rect width="${FINAL_WIDTH}" height="${FINAL_HEIGHT}" fill="${frameColor.value}"/>
+    <text x="${FINAL_WIDTH / 2}" y="${FOOTER_TITLE_LINE_1_Y}" text-anchor="middle" font-family="Malgun Gothic, Arial, sans-serif" font-size="62" font-weight="900" fill="${frameColor.textColor}">${EVENT_TITLE_LINE_1}</text>
+    <text x="${FINAL_WIDTH / 2}" y="${FOOTER_TITLE_LINE_2_Y}" text-anchor="middle" font-family="Malgun Gothic, Arial, sans-serif" font-size="62" font-weight="900" fill="${frameColor.textColor}">${EVENT_TITLE_LINE_2}</text>
   </svg>`;
 
   const schoolMark = await makeSchoolMark();
@@ -118,8 +127,8 @@ async function frameDecoration(): Promise<Buffer> {
 
   return sharp(Buffer.from(baseSvg))
     .composite([
-      { input: schoolMark, left: 72 * SCALE, top: FINAL_HEIGHT - 178 * SCALE },
-      { input: characters, left: FINAL_WIDTH - 292 * SCALE, top: FINAL_HEIGHT - 174 * SCALE },
+      { input: schoolMark, left: 72 * SCALE, top: SCHOOL_MARK_TOP },
+      { input: characters, left: FINAL_WIDTH - 292 * SCALE, top: CHARACTER_MARK_TOP },
     ])
     .png()
     .toBuffer();
@@ -163,15 +172,19 @@ function panelPosition(index: number): { left: number; top: number } {
   };
 }
 
-export async function composeFourCut(background: Buffer, shots: Buffer[]): Promise<Buffer> {
+export async function composeFourCut(
+  background: Buffer,
+  shots: Buffer[],
+  frameColorId: FrameColorId = DEFAULT_FRAME_COLOR_ID,
+): Promise<Buffer> {
   if (shots.length !== 4) {
     throw new Error("Four shots are required.");
   }
 
   const normalizedShots = await Promise.all(shots.map((shot) => normalizeShotForBooth(shot)));
-  const border = await panelBorder();
+  const border = await panelBorder(frameColorId);
   const panels = await Promise.all(normalizedShots.map((shot) => makePanel(background, shot)));
-  const frame = await frameDecoration();
+  const frame = await frameDecoration(frameColorId);
 
   const composites = panels.flatMap((panel, index) => {
     const { left, top } = panelPosition(index);
